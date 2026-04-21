@@ -1,0 +1,1530 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Generador Carta Gantt – Formato SFSF</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+:root{
+  --sb-bg:#1a2535;--sb-dark:#111b29;--sb-bdr:#253550;
+  --acc:#2d6fd4;--acc2:#1a5aaa;
+  --bg:#f3f5f8;--wh:#fff;--bdr:#d4d9e3;--bdlt:#eaecf2;
+  --ink:#1a2332;--mt:#6b7a90;
+  --row-h:22px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:13px}
+
+/* APP SHELL */
+.app{display:flex;flex-direction:column;min-height:100vh}
+
+/* MOBILE TOPBAR */
+.mob-header{
+  background:var(--sb-dark);color:#fff;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px;position:sticky;top:0;z-index:200;
+  border-bottom:1px solid var(--sb-bdr);
+}
+.mob-header-text h1{font-size:14px;font-weight:700;line-height:1.2}
+.mob-header-text p{font-size:9px;color:#607a9a;margin-top:2px;letter-spacing:.8px;text-transform:uppercase}
+.mob-toggle{
+  background:var(--acc);color:#fff;border:none;border-radius:6px;
+  padding:9px 14px;font-size:12px;font-weight:600;cursor:pointer;
+  display:flex;align-items:center;gap:6px;white-space:nowrap;flex-shrink:0;
+  font-family:inherit;transition:background .15s;-webkit-tap-highlight-color:transparent;
+}
+.mob-toggle:hover,.mob-toggle:active{background:var(--acc2)}
+.mob-toggle .arrow{transition:transform .25s;display:inline-block;font-style:normal}
+.mob-toggle.open .arrow{transform:rotate(180deg)}
+
+/* SIDEBAR */
+.sidebar{
+  background:var(--sb-bg);color:#c8d8ec;
+  border-bottom:2px solid var(--sb-bdr);
+  overflow:hidden;max-height:0;
+  transition:max-height .35s ease;
+}
+.sidebar.open{max-height:2400px}
+.sb-logo-mobile{
+  padding:14px 16px 10px;background:var(--sb-dark);
+  border-bottom:1px solid var(--sb-bdr);
+}
+.sb-logo-mobile h2{font-size:13px;font-weight:700;color:#fff}
+.sb-logo-mobile p{font-size:9px;color:#607a9a;margin-top:2px;letter-spacing:.8px;text-transform:uppercase}
+.sb-body{padding:14px 16px 20px}
+.sb-sec{margin-bottom:16px}
+.sb-sec-title{
+  font-size:9px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;
+  color:#607a9a;margin-bottom:8px;padding-bottom:5px;
+  border-bottom:1px solid var(--sb-bdr);
+}
+.sb-label{font-size:11px;color:#8faac0;display:block;margin-bottom:4px;margin-top:10px}
+.sb-label:first-of-type{margin-top:0}
+.sb-input,.sb-select{
+  width:100%;padding:10px 12px;border-radius:6px;
+  border:1px solid var(--sb-bdr);background:#111b29;color:#d8eaf8;
+  font-size:14px;font-family:inherit;
+  -webkit-appearance:none;appearance:none;
+}
+.sb-input:focus,.sb-select:focus{outline:none;border-color:var(--acc)}
+.sb-row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sb-row2>div .sb-label{margin-top:0}
+.ckrow{display:flex;gap:18px;margin-top:12px;flex-wrap:wrap}
+.ckrow label{display:flex;align-items:center;gap:8px;font-size:12px;color:#8faac0;cursor:pointer}
+.ckrow input[type=checkbox]{width:17px;height:17px;accent-color:var(--acc);cursor:pointer}
+.btn-gen{
+  width:100%;padding:14px;background:var(--acc);color:#fff;font-weight:700;
+  font-size:15px;border:none;border-radius:8px;cursor:pointer;
+  transition:background .15s;margin-top:8px;font-family:inherit;
+  -webkit-tap-highlight-color:transparent;
+}
+.btn-gen:hover,.btn-gen:active{background:var(--acc2)}
+
+/* MAIN */
+.main{flex:1;display:flex;flex-direction:column;min-width:0}
+.action-bar{
+  background:var(--wh);border-bottom:1.5px solid var(--bdr);
+  padding:10px 14px;display:flex;align-items:center;
+  justify-content:space-between;gap:10px;flex-wrap:wrap;
+}
+.action-bar-info{min-width:0;flex:1}
+.topbar-title{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar-meta{font-size:10px;color:var(--mt);margin-top:2px;line-height:1.4}
+.exp-row{display:flex;gap:7px;flex-shrink:0;flex-wrap:wrap}
+.btn-exp{
+  padding:9px 15px;border-radius:6px;font-size:12px;font-weight:600;
+  cursor:pointer;border:none;font-family:inherit;transition:opacity .15s;
+  white-space:nowrap;-webkit-tap-highlight-color:transparent;
+}
+.btn-exp:hover,.btn-exp:active{opacity:.85}
+.btn-png  {background:#2563a8;color:#fff}
+.btn-xlsx {background:#1e7c4a;color:#fff}
+.btn-clear{background:#4a5568;color:#fff}
+.main-body{flex:1;overflow:auto;padding:14px;-webkit-overflow-scrolling:touch}
+
+/* GANTT */
+#ganttOutput{
+  background:var(--wh);border:1.5px solid var(--bdr);border-radius:8px;
+  overflow:hidden;width:max-content;min-width:100%;font-size:11px;
+}
+.g-title-band{
+  padding:12px 14px 10px;background:#0d1f35;color:#fff;
+  display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;
+}
+.g-title-band h2{font-size:15px;font-weight:700}
+.g-title-band .meta{font-size:9px;color:#7a9ec0;margin-top:2px}
+.g-legend{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.leg{display:flex;align-items:center;gap:4px;font-size:9px;color:#9ab8d0}
+.leg-sq{width:11px;height:7px;border-radius:1px}
+.leg-di{width:9px;height:9px;transform:rotate(45deg);border-radius:1px}
+
+.g-tbl{border-collapse:collapse;width:100%}
+.g-tbl col.cL{min-width:220px;width:220px}
+.g-tbl col.cD{width:44px}
+.g-tbl col.cS{width:64px}
+.g-tbl col.cE{width:64px}
+.g-tbl col.cW{width:26px}
+.g-tbl thead tr.rMon th{
+  background:#1a2e4a;color:#8ab0d0;font-size:9px;font-weight:600;
+  letter-spacing:.5px;border-right:1px solid #253550;padding:4px 3px;
+  text-align:center;text-transform:uppercase;white-space:nowrap;
+}
+.g-tbl thead tr.rWk th{
+  background:#f0f3f8;color:var(--mt);font-size:9px;font-weight:500;
+  border-right:1px solid var(--bdlt);border-bottom:2px solid var(--bdr);
+  padding:3px 2px;text-align:center;white-space:nowrap;
+}
+.g-tbl thead tr.rMon th.fix,.g-tbl thead tr.rWk th.fix{
+  background:#1a2e4a;color:#8ab0d0;text-align:left;padding-left:7px;
+  border-right:2px solid #253550;font-size:9px;font-weight:600;
+}
+.g-tbl tbody td{padding:0;border-bottom:1px solid var(--bdlt);vertical-align:middle;white-space:nowrap}
+.g-tbl tbody tr:last-child td{border-bottom:none}
+.td-lbl{border-right:2px solid var(--bdr);min-width:220px}
+.td-dur,.td-s,.td-e{border-right:1px solid var(--bdlt);text-align:center;font-size:9px;color:var(--mt);padding:0 3px}
+.td-cell{border-right:1px solid var(--bdlt);position:relative}
+.week-alt{background:rgba(0,0,0,.018)!important}
+
+.rl0 td{background:#08111e}.rl0 .td-lbl{padding:5px 8px;font-size:12px;font-weight:700;color:#e0eef8}.rl0 .td-dur,.rl0 .td-s,.rl0 .td-e{color:#4a7a9a;background:#08111e}
+.rl1 td{background:#102035}.rl1 .td-lbl{padding:5px 8px;font-size:11px;font-weight:700;color:#c8dcea}.rl1 .td-dur,.rl1 .td-s,.rl1 .td-e{color:#4a7a9a;background:#102035}
+.rl2 .td-lbl{padding:4px 8px;font-size:11px;font-weight:700;color:#fff}
+.rl2 .td-dur,.rl2 .td-s,.rl2 .td-e{font-size:9px;color:rgba(255,255,255,.6)}
+.rl3 td{background:#f2f5fb}.rl3 .td-lbl{padding:3px 8px 3px 18px;font-size:11px;font-weight:600;color:#1e3560}.rl3 .td-dur,.rl3 .td-s,.rl3 .td-e{background:#f2f5fb}
+.rl4 td{background:#f8fafd}.rl4 .td-lbl{padding:3px 8px 3px 28px;font-size:10px;font-weight:500;color:#2a4565}.rl4 .td-dur,.rl4 .td-s,.rl4 .td-e{background:#f8fafd}
+.rl5 td{background:#fff}.rl5 .td-lbl{padding:2px 8px 2px 38px;font-size:10px;color:#3a5070}
+.rl6 td{background:#fff}.rl6 .td-lbl{padding:2px 8px 2px 48px;font-size:10px;color:#3a5070}
+.rl7 td{background:#fff}.rl7 .td-lbl{padding:2px 8px 2px 58px;font-size:10px;color:#3a5070}
+.rH td{background:#fffbf0}.rH .td-lbl{padding:2px 8px 2px 14px;font-size:10px;font-weight:600;color:#7a5200}.rH .td-dur,.rH .td-s,.rH .td-e{background:#fffbf0;color:#9a6a10}
+.rHP td{background:#fff5f5}.rHP .td-lbl{padding:2px 8px 2px 14px;font-size:10px;font-weight:700;color:#8b1010}.rHP .td-dur,.rHP .td-s,.rHP .td-e{background:#fff5f5;color:#aa2020}
+
+.bw{width:100%;height:var(--row-h);position:relative;display:flex;align-items:center}
+.gb{position:absolute;border-radius:2px;box-shadow:0 1px 2px rgba(0,0,0,.15);cursor:default;transition:filter .12s}
+.gb:hover{filter:brightness(1.1)}
+.dm{position:absolute;width:11px;height:11px;transform:rotate(45deg);border-radius:1px;box-shadow:0 1px 3px rgba(0,0,0,.25);z-index:5;top:50%;margin-top:-5.5px}
+.tl{position:absolute;top:0;bottom:0;width:1.5px;background:rgba(200,40,40,.55);z-index:10;pointer-events:none}
+
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 24px;text-align:center;color:var(--mt)}
+.empty .ico{font-size:48px;margin-bottom:12px;opacity:.3}
+.empty h3{font-size:18px;font-weight:700;color:#1e3060;margin-bottom:8px}
+.empty p{font-size:13px;line-height:1.6;max-width:300px}
+
+/* ADVANCED CONFIG SECTION */
+.adv-toggle{
+  width:100%;padding:10px 14px;
+  background:#162233;
+  border:1px solid var(--sb-bdr);border-radius:7px;
+  color:#7ab0d4;font-size:11px;font-weight:700;
+  cursor:pointer;display:flex;align-items:center;justify-content:space-between;
+  font-family:inherit;letter-spacing:.8px;text-transform:uppercase;
+  transition:background .15s;margin-top:4px;
+}
+.adv-toggle:hover{background:#1a2c42}
+.adv-toggle .adv-arrow{transition:transform .25s;font-style:normal;font-size:10px}
+.adv-toggle.open .adv-arrow{transform:rotate(180deg)}
+.adv-panel{
+  overflow:hidden;max-height:0;
+  transition:max-height .3s ease;
+  margin-top:6px;
+}
+.adv-panel.open{max-height:1400px}
+
+/* Phase list items – matching image */
+.phase-list{display:flex;flex-direction:column;gap:5px;margin-bottom:10px}
+.phase-item{
+  display:flex;align-items:center;gap:9px;
+  background:#162233;border:1px solid #1e3550;
+  border-radius:8px;padding:10px 12px;
+  transition:background .15s;
+}
+.phase-item:hover{background:#1a2d44}
+.phase-item.phase-disabled{opacity:.55}
+.phase-check{
+  width:17px;height:17px;border-radius:4px;
+  border:none;cursor:pointer;flex-shrink:0;
+  accent-color:var(--acc);
+}
+.phase-name{
+  flex:1;font-size:12px;color:#c8dcea;font-weight:500;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  min-width:0;cursor:pointer;
+}
+.phase-name:hover{color:#fff}
+.phase-count{
+  font-size:11px;color:#4a8ab0;white-space:nowrap;flex-shrink:0;
+}
+.phase-del{
+  background:none;border:none;cursor:pointer;
+  color:#4a6a8a;font-size:18px;line-height:1;padding:0 2px;
+  transition:color .15s;flex-shrink:0;font-weight:300;
+}
+.phase-del:hover{color:#e05555}
+
+/* Add phase button */
+.btn-add-phase{
+  width:100%;padding:11px;background:#1a3a5f;
+  color:#5ba4d4;border:1px solid #2a5080;border-radius:8px;
+  font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;
+  transition:background .15s,color .15s;letter-spacing:.2px;
+}
+.btn-add-phase:hover{background:#1e4570;color:#7bbce8}
+
+/* Phase name inline edit */
+.phase-name-input{
+  flex:1;background:transparent;border:none;border-bottom:1px solid #3a6a9a;
+  color:#e0eef8;font-size:12px;font-weight:500;font-family:inherit;
+  outline:none;padding:1px 2px;min-width:0;
+}
+
+@media(min-width:768px){
+  .adv-toggle{font-size:9px;padding:8px 12px}
+  .phase-item{padding:8px 10px;gap:8px}
+  .phase-name{font-size:11px}
+  .phase-count{font-size:10px}
+  .phase-del{font-size:16px}
+}
+  text-align:center;font-size:11px;color:var(--mt);
+  padding:7px 12px;background:#f0f4fa;border-top:1px solid var(--bdlt);
+  animation:fadeOut 3s 4s forwards;
+}
+@keyframes fadeOut{to{opacity:0;height:0;padding:0}}
+
+/* DESKTOP LAYOUT ≥ 768px */
+@media(min-width:768px){
+  body{height:100vh;overflow:hidden}
+  .app{flex-direction:row;height:100vh}
+  .mob-header{display:none}
+  .sidebar{
+    width:300px;min-width:300px;flex-shrink:0;
+    border-right:1px solid var(--sb-bdr);border-bottom:none;
+    overflow-y:auto;max-height:none!important;
+    display:flex!important;flex-direction:column;
+    transition:none;
+  }
+  .sb-logo-mobile{display:block;padding:18px 18px 14px}
+  .sb-logo-mobile h2{font-size:14px}
+  .main{overflow:hidden}
+  .scroll-hint{display:none!important}
+  .sb-input,.sb-select{font-size:11px;padding:6px 9px}
+  .btn-gen{font-size:12px;padding:11px}
+  .btn-exp{padding:6px 13px;font-size:11px}
+}
+@media(min-width:1200px){
+  .sidebar{width:320px;min-width:320px}
+}
+
+/* SMALL PHONES < 380px */
+@media(max-width:380px){
+  .sb-row2{grid-template-columns:1fr}
+  .exp-row{gap:5px}
+  .btn-exp{padding:8px 10px;font-size:11px}
+  .mob-toggle{padding:8px 10px;font-size:11px}
+}
+
+@media print{
+  .mob-header,.action-bar,.scroll-hint{display:none}
+  .app{display:block}
+  .main-body{padding:0;overflow:visible}
+  #ganttOutput{border:none}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- MOBILE HEADER -->
+<header class="mob-header">
+  <div class="mob-header-text">
+    <h1>Carta Gantt</h1>
+    <p>Generador SFSF</p>
+  </div>
+  <button class="mob-toggle" id="mobToggle" onclick="toggleSidebar()">
+    &#9881; Config <span class="arrow">&#9660;</span>
+  </button>
+</header>
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+  <div class="sb-logo-mobile">
+    <h2>Generador Carta Gantt</h2>
+    <p>Formato Implementación SFSF</p>
+  </div>
+  <div class="sb-body">
+    <div class="sb-sec">
+      <div class="sb-sec-title">Proyecto</div>
+      <span class="sb-label">Nombre del proyecto</span>
+      <input class="sb-input" id="fProjName" type="text" value="Proyecto de Implementación SFSF" placeholder="Nombre del proyecto">
+      <span class="sb-label">Cliente / Empresa</span>
+      <input class="sb-input" id="fClient" type="text" value="AZURIAN" placeholder="Cliente">
+    </div>
+    <div class="sb-sec">
+      <div class="sb-sec-title">Cronograma</div>
+      <div class="sb-row2">
+        <div>
+          <span class="sb-label">Fecha inicio</span>
+          <input class="sb-input" id="fStart" type="date">
+        </div>
+        <div>
+          <span class="sb-label">Duración</span>
+          <select class="sb-select" id="fMonths">
+            <option value="1">1 mes</option><option value="2">2 meses</option><option value="3">3 meses</option>
+            <option value="4">4 meses</option><option value="5">5 meses</option><option value="6">6 meses</option>
+            <option value="7">7 meses</option><option value="8">8 meses</option><option value="9">9 meses</option>
+            <option value="10" selected>10 meses</option><option value="11">11 meses</option>
+            <option value="12">12 meses</option><option value="13">13 meses</option><option value="14">14 meses</option>
+            <option value="15">15 meses</option><option value="16">16 meses</option><option value="17">17 meses</option>
+            <option value="18">18 meses</option><option value="19">19 meses</option><option value="20">20 meses</option>
+          </select>
+        </div>
+      </div>
+      <span class="sb-label">Escala de tiempo</span>
+      <select class="sb-select" id="fScale">
+        <option value="week" selected>Semanas</option>
+        <option value="biweek">Quincenas</option>
+        <option value="month">Meses</option>
+      </select>
+    </div>
+    <div class="sb-sec">
+      <div class="sb-sec-title">Visualización</div>
+      <span class="sb-label">Nivel de detalle</span>
+      <select class="sb-select" id="fDetail">
+        <option value="summary2">Gantt Resumida (hasta nivel 2)</option>
+        <option value="summary3">Gantt Resumida (hasta nivel 3)</option>
+        <option value="detail" selected>Gantt Detallada (todos los niveles)</option>
+      </select>
+      <span class="sb-label"># Hitos de Pago</span>
+      <select class="sb-select" id="fHitos">
+        <option value="1">1 hito</option><option value="2">2 hitos</option><option value="3">3 hitos</option>
+        <option value="4">4 hitos</option><option value="5">5 hitos</option><option value="6">6 hitos</option>
+        <option value="7">7 hitos</option><option value="8">8 hitos</option><option value="9">9 hitos</option>
+        <option value="10" selected>10 hitos</option>
+      </select>
+      <div class="ckrow">
+        <label><input type="checkbox" id="fShowDur" checked> Duración</label>
+        <label><input type="checkbox" id="fShowDates" checked> Fechas</label>
+      </div>
+    </div>
+    <!-- CONFIGURACIÓN AVANZADA -->
+    <div class="sb-sec">
+      <button class="adv-toggle" id="advToggle" onclick="toggleAdv()">
+        ⚙&nbsp; Configuración Avanzada
+        <span class="adv-arrow">▼</span>
+      </button>
+      <div class="adv-panel" id="advPanel">
+        <div style="margin-top:14px">
+          <div class="sb-sec-title" style="color:#5ba4d4;letter-spacing:1.8px">Fases del Proyecto</div>
+          <div style="height:10px"></div>
+          <div class="phase-list" id="phaseList"></div>
+          <button class="btn-add-phase" onclick="addPhaseRow()">+ Agregar fase</button>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn-gen" onclick="buildAndClose()">&#9654; Generar Carta Gantt</button>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+  <div class="action-bar">
+    <div class="action-bar-info">
+      <div class="topbar-title" id="tbarTitle">Vista previa</div>
+      <div class="topbar-meta"  id="tbarMeta">Configure el proyecto y presione Generar</div>
+    </div>
+    <div class="exp-row">
+      <button class="btn-exp btn-png"   onclick="exportPNG()">&#8595; PNG</button>
+      <button class="btn-exp btn-xlsx"  onclick="exportXLSX()">&#8595; Excel</button>
+      <button class="btn-exp btn-clear" onclick="resetPage()">&#10005; Limpiar</button>
+    </div>
+  </div>
+  <div class="main-body" id="mainBody">
+    <div class="empty">
+      <div class="ico">&#128202;</div>
+      <h3>Listo para generar</h3>
+      <p>Configura el proyecto y presiona <strong>Generar Carta Gantt</strong>.</p>
+    </div>
+  </div>
+</main>
+
+</div><!-- /app -->
+<script>
+// All initialization runs after page load so PHASE_DEFS is available
+window.addEventListener('DOMContentLoaded', function() {
+  // Set today's date
+  const t = new Date();
+  document.getElementById('fStart').value = `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
+  // Desktop: open sidebar by default
+  if (window.innerWidth >= 768) {
+    document.getElementById('sidebar').classList.add('open');
+  }
+  // Init phase state AFTER PHASE_DEFS is defined
+  initPhaseState();
+});
+
+/* Toggle sidebar on mobile */
+function toggleSidebar() {
+  const sb  = document.getElementById('sidebar');
+  const btn = document.getElementById('mobToggle');
+  sb.classList.toggle('open');
+  btn.classList.toggle('open');
+}
+
+/* Toggle advanced config panel */
+function toggleAdv() {
+  const panel = document.getElementById('advPanel');
+  const btn   = document.getElementById('advToggle');
+  panel.classList.toggle('open');
+  btn.classList.toggle('open');
+}
+
+/* ═══════════════════════════════════════════════════════
+   PHASE MANAGEMENT – Configuración Avanzada
+   ═══════════════════════════════════════════════════════ */
+
+// Phase state – mirrors PHASE_DEFS but mutable
+// taskCount derived from PHASE_TASKS
+let phaseState = [];
+
+function initPhaseState() {
+  phaseState = PHASE_DEFS.map((ph, i) => ({
+    id: i,
+    name: ph.name,
+    pct: ph.pct,
+    color: ph.color,
+    barColor: ph.barColor,
+    enabled: true,
+    taskCount: (PHASE_TASKS.find(b => b.phaseIdx === i) || { tasks: [] }).tasks.filter(t => !t.h).length
+  }));
+  renderPhaseList();
+}
+
+function renderPhaseList() {
+  const container = document.getElementById('phaseList');
+  if (!container) return;
+  container.innerHTML = '';
+
+  phaseState.forEach((ph, idx) => {
+    const item = document.createElement('div');
+    item.className = 'phase-item' + (ph.enabled ? '' : ' phase-disabled');
+
+    const taskLabel = ph.taskCount === 0 ? '' :
+      ph.taskCount === 1 ? '1 tarea' : `${ph.taskCount} tareas`;
+
+    item.innerHTML = `
+      <input type="checkbox" class="phase-check" ${ph.enabled ? 'checked' : ''}
+        onchange="togglePhase(${idx},this.checked)">
+      <div class="phase-color-dot" style="background:${ph.color};border-radius:4px;width:14px;height:14px;flex-shrink:0;position:relative;cursor:pointer" title="Cambiar color">
+        <input type="color" value="${ph.color}"
+          style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;border:none;padding:0"
+          oninput="changePhaseColor(${idx},this.value)">
+      </div>
+      <span class="phase-name" onclick="editPhaseName(this,${idx})">${escHtml(ph.name)}</span>
+      <span class="phase-count">${taskLabel}</span>
+      <button class="phase-del" onclick="deletePhase(${idx})" title="Eliminar">×</button>
+    `;
+    container.appendChild(item);
+  });
+}
+
+function togglePhase(idx, enabled) {
+  phaseState[idx].enabled = enabled;
+  renderPhaseList();
+  syncPhaseDefs();
+}
+
+function changePhaseColor(idx, color) {
+  phaseState[idx].color    = color;
+  phaseState[idx].barColor = color;
+  // Update dot color live without full re-render
+  const dots = document.querySelectorAll('.phase-color-dot');
+  if (dots[idx]) dots[idx].style.background = color;
+  syncPhaseDefs();
+}
+
+function editPhaseName(el, idx) {
+  const current = phaseState[idx].name;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'phase-name-input';
+  input.value = current;
+  el.replaceWith(input);
+  input.focus();
+  input.select();
+  const save = () => {
+    const val = input.value.trim() || current;
+    phaseState[idx].name = val;
+    input.replaceWith(el);
+    el.textContent = val;
+    syncPhaseDefs();
+  };
+  input.addEventListener('blur', save);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); if (e.key === 'Escape') { input.value = current; input.blur(); } });
+}
+
+function deletePhase(idx) {
+  if (phaseState.length <= 1) { alert('Debe haber al menos una fase.'); return; }
+  phaseState.splice(idx, 1);
+  // Re-index
+  phaseState.forEach((p, i) => p._renderIdx = i);
+  renderPhaseList();
+  syncPhaseDefs();
+}
+
+let phaseCounter = 100;
+function addPhaseRow() {
+  const colors = ['#2e86c1','#17a589','#8e44ad','#e67e22','#c0392b','#2980b9','#27ae60'];
+  const color  = colors[phaseState.length % colors.length];
+  phaseState.push({
+    id: ++phaseCounter,
+    name: 'Nueva fase',
+    pct: 5,
+    color: color,
+    barColor: color,
+    enabled: true,
+    taskCount: 0
+  });
+  renderPhaseList();
+  syncPhaseDefs();
+  // Scroll to bottom of phase list
+  setTimeout(() => {
+    const list = document.getElementById('phaseList');
+    list.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, 100);
+}
+
+function syncPhaseDefs() {
+  // Re-normalise pct so enabled phases sum to 100%
+  const enabled = phaseState.filter(p => p.enabled);
+  const totalPct = enabled.reduce((s, p) => s + p.pct, 0);
+  // Keep proportions, normalise
+  enabled.forEach(p => { p._normPct = (p.pct / totalPct) * 100; });
+  phaseState.filter(p => !p.enabled).forEach(p => { p._normPct = 0; });
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* Generate and auto-close sidebar on mobile */
+function buildAndClose() {
+  buildGantt();
+  if (window.innerWidth < 768) {
+    const sb  = document.getElementById('sidebar');
+    const btn = document.getElementById('mobToggle');
+    sb.classList.remove('open');
+    btn.classList.remove('open');
+    // Scroll to gantt
+    setTimeout(() => {
+      const gantt = document.getElementById('ganttOutput');
+      if (gantt) gantt.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   CONSTANTS – derived from SFSF Excel analysis
+   ═══════════════════════════════════════════════════════ */
+
+// Phase proportions (% of total working days = 225)
+const PHASE_DEFS = [
+  { name:'Inicio de proyecto',         pct: 6.67, color:'#1a5276', barColor:'#2e86c1', level:2 },
+  { name:'Exploración',                pct:13.33, color:'#1e8449', barColor:'#27ae60', level:2 },
+  { name:'Realización - Construcción', pct:53.33, color:'#6c3483', barColor:'#8e44ad', level:2 },
+  { name:'Realización - Test',         pct:11.11, color:'#a04000', barColor:'#e67e22', level:2 },
+  { name:'Despliegue',                 pct: 9.33, color:'#0e6655', barColor:'#17a589', level:2 },
+  { name:'Go Live and Support',        pct: 6.22, color:'#922b21', barColor:'#cb4335', level:2 },
+];
+
+// Payment hitos – corrected names, removed duplicates, added N°10 Fin de Proyecto
+// pct = % of total working days elapsed at that point
+const ALL_PAY_HITOS = [
+  // Hito N°1: al cierre de Inicio de proyecto (pct = phase pct of Inicio = 6.67%)
+  { name:'Hito N°1: Formalización firma de contrato',         pct:  6.67, atPhaseEnd: 0 },
+  { name:'Hito de Pago N°2: Cierre de Exploración',           pct: 20.0  },
+  { name:'Hito de Pago N°3: Cierre config. base EC',          pct: 33.0  },
+  { name:'Hito de Pago N°4: Cierre iteración 1 EC',           pct: 41.8  },
+  { name:'Hito de Pago N°5: Cierre iteración 2 EC',           pct: 53.8  },
+  { name:'Hito de Pago N°6: Cierre de Construcción',          pct: 70.0  },
+  { name:'Hito de Pago N°7: Fin Pruebas Unitarias',           pct: 85.0  },
+  { name:'Hito de Pago N°8: Fin Pruebas Integrales',          pct: 90.0  },
+  { name:'Hito de Pago N°9: Capacitación Train the trainers', pct: 95.0  },
+  { name:'Hito de Pago N°10: Fin de Proyecto',                pct:100.0  },
+];
+
+// Detailed task tree per phase  [name, durPct (% of phase dur), level, isHito]
+const PHASE_TASKS = [
+  // ── FASE 0: Inicio ─────────────────────────────────────────────────────
+  { phaseIdx:0, tasks:[
+    { n:'Reunión de Coordinación Inicial',          dp:0,    lv:3, h:true  },
+    { n:'Lanzamiento del proyecto',                  dp:100,  lv:3, h:false },
+    { n:'Preparación cronograma detallado',          dp:33.3, lv:4, h:false, off:0    },
+    { n:'Preparación presentación Kick-off',         dp:6.7,  lv:4, h:false, off:33.3 },
+    { n:'Cronograma detallado y capacidad usuarios', dp:26.7, lv:4, h:false, off:40   },
+    { n:'Definicion de agenda y reportes',           dp:6.7,  lv:4, h:false, off:60   },
+    { n:'Formacion equipo y mesas de trabajo',       dp:13.3, lv:4, h:false, off:66.7 },
+    { n:'Planificación y ejecución del Kick-off',    dp:13.3, lv:4, h:false, off:80   },
+    { n:'Solicitud de Accesos SAP',                  dp:33.3, lv:3, h:false, off:60   },
+    { n:'S-USER SAP One Support',                    dp:33.3, lv:4, h:false, off:60   },
+    { n:'Acceso a ECP',                              dp:33.3, lv:4, h:false, off:60   },
+    { n:'Acceso a SFSF EC y Provisioning',           dp:33.3, lv:4, h:false, off:60   },
+    { n:'Acceso a RCM/RMK',                          dp:33.3, lv:4, h:false, off:60   },
+    { n:'Acceso Docusign',                           dp:33.3, lv:4, h:false, off:60   },
+    { n:'Solicitud de Provisioning Integración',     dp:33.3, lv:4, h:false, off:60   },
+    { n:'Firma Plan de Proyecto',                    dp:0,    lv:3, h:true  },
+  ]},
+  // ── FASE 1: Exploración ─────────────────────────────────────────────────
+  { phaseIdx:1, tasks:[
+    { n:'Workshops (Sesiones 2h diarias)',            dp:10,   lv:3, h:false, off:0    },
+    { n:'Workshop Employee Central (EC)',             dp:10,   lv:4, h:false, off:0    },
+    { n:'Workshop Employee Central Payroll (ECP)',    dp:10,   lv:4, h:false, off:0    },
+    { n:'Workshop SAP WORKFORCE TIME & ATT (TAM)',   dp:10,   lv:4, h:false, off:0    },
+    { n:'Hito N°1: Formalización firma de contrato', dp:0,    lv:3, h:true  },
+    { n:'Employee Central (EC)',                      dp:90,   lv:3, h:false, off:10   },
+    { n:'Workbook (Reuniones de Trabajos)',           dp:90,   lv:4, h:false, off:10   },
+    { n:'Objeto de Fundamento',                       dp:10,   lv:5, h:false, off:10   },
+    { n:'Posiciones',                                 dp:10,   lv:5, h:false, off:20   },
+    { n:'Datos de Empleado',                          dp:7,    lv:5, h:false, off:30   },
+    { n:'Perfil del Empleado',                        dp:3,    lv:5, h:false, off:37   },
+    { n:'Eventos',                                    dp:7,    lv:5, h:false, off:40   },
+    { n:'Autoservicios',                              dp:7,    lv:5, h:false, off:47   },
+    { n:'Beneficios, Seguros y Convenios',            dp:3,    lv:5, h:false, off:54   },
+    { n:'Reportes',                                   dp:7,    lv:5, h:false, off:57   },
+    { n:'Formatos y documento',                       dp:7,    lv:5, h:false, off:64   },
+    { n:'Análisis de GAPs en EC',                     dp:7,    lv:5, h:false, off:71   },
+    { n:'Consolidación de la información',            dp:3,    lv:5, h:false, off:78   },
+    { n:'Presentación Workbooks base',                dp:3,    lv:5, h:false, off:81   },
+    { n:'Ajuste de Workbooks base',                   dp:17,   lv:5, h:false, off:83   },
+    { n:'Firma de Workbooks BASE (EC)',                dp:0,    lv:4, h:true  },
+    { n:'Employee Central Payroll (ECP)',              dp:90,   lv:3, h:false, off:10   },
+    { n:'Definiciones BBP (Workbooks)',               dp:90,   lv:4, h:false, off:10   },
+    { n:'Estructuras: Empresa y Personal',            dp:10,   lv:5, h:false, off:10   },
+    { n:'Seguridad Social',                           dp:7,    lv:5, h:false, off:20   },
+    { n:'Anticipos, pagos varios, bonificaciones',    dp:7,    lv:5, h:false, off:27   },
+    { n:'Descuentos, Retenciones, pago a 3eros',      dp:7,    lv:5, h:false, off:34   },
+    { n:'Asignación Familiar',                        dp:7,    lv:5, h:false, off:41   },
+    { n:'Consolidación información BBP',              dp:7,    lv:5, h:false, off:48   },
+    { n:'Préstamos',                                  dp:7,    lv:5, h:false, off:55   },
+    { n:'Impuestos a la renta, zona extremas',        dp:7,    lv:5, h:false, off:62   },
+    { n:'Provisiones',                                dp:7,    lv:5, h:false, off:69   },
+    { n:'Finiquito',                                  dp:7,    lv:5, h:false, off:76   },
+    { n:'Análisis de GAPs en ECP',                    dp:3,    lv:5, h:false, off:83   },
+    { n:'Presentación BBP',                           dp:3,    lv:5, h:false, off:93   },
+    { n:'Firma de Workbooks BASE (ECP)',               dp:0,    lv:4, h:true  },
+    { n:'Diseño de Integraciones',                    dp:90,   lv:3, h:false, off:10   },
+    { n:'Formación equipo técnicos',                  dp:37,   lv:4, h:false, off:10   },
+    { n:'Reunión de Coordinación Integración',        dp:18,   lv:4, h:false, off:47   },
+    { n:'Diseño integraciones estándares + Custom',   dp:18,   lv:4, h:false, off:65   },
+    { n:'Presentación diseño de integración',         dp:11,   lv:4, h:false, off:73   },
+    { n:'Revisión y aprobación',                      dp:15,   lv:4, h:false, off:84   },
+    { n:'Firma de Workbooks BASE (Integr.)',           dp:0,    lv:4, h:true  },
+    { n:'SAP WORKFORCE TIME & ATT (TAM)',             dp:90,   lv:3, h:false, off:10   },
+    { n:'Talleres Relevamiento: Core Items',          dp:23,   lv:4, h:false, off:10   },
+    { n:'Talleres Relevamiento – Leave & Accruals',   dp:67,   lv:4, h:false, off:33   },
+    { n:'Firma de Workbooks BASE (TAM)',               dp:0,    lv:4, h:true  },
+    { n:'Desarrollos ABAP',                           dp:47,   lv:3, h:false, off:53   },
+    { n:'Especificaciones funcionales ABAP',          dp:17,   lv:4, h:false, off:53   },
+    { n:'Especificaciones técnicas ABAP',             dp:30,   lv:4, h:false, off:70   },
+    { n:'Requerimientos técnicos – SAP Router',       dp:83,   lv:3, h:false, off:10   },
+  ]},
+  // ── FASE 2: Realización – Construcción ──────────────────────────────────
+  { phaseIdx:2, tasks:[
+    { n:'Employee Central (EC)',                      dp:83,   lv:3, h:false, off:0    },
+    { n:'Configuración y Parametrizaciones EC',       dp:25,   lv:4, h:false, off:0    },
+    { n:'Hito de Pago N°3: Cierre config. base EC',  dp:0,    lv:4, h:true  },
+    { n:'Iteración 1 EC',                             dp:17,   lv:4, h:false, off:25   },
+    { n:'Carga de datos para IT1',                    dp:2,    lv:5, h:false, off:25   },
+    { n:'Presentación iteración 1',                   dp:8,    lv:5, h:false, off:27   },
+    { n:'Ajustes de Iteración 1',                     dp:7,    lv:5, h:false, off:35   },
+    { n:'Firma del Workbook IT1',                     dp:0,    lv:5, h:true  },
+    { n:'Hito de Pago N°4: Cierre iteración 1 EC',   dp:0,    lv:4, h:true  },
+    { n:'Iteración 2 EC',                             dp:23,   lv:4, h:false, off:42   },
+    { n:'Configuración RBP',                          dp:4,    lv:5, h:false, off:42   },
+    { n:'Configuración MDF',                          dp:4,    lv:5, h:false, off:46   },
+    { n:'Presentación de Iteración 2',                dp:8,    lv:5, h:false, off:50   },
+    { n:'Ajustes de Iteración 2',                     dp:7,    lv:5, h:false, off:58   },
+    { n:'Firma del Workbook IT2',                     dp:0,    lv:5, h:true  },
+    { n:'Hito de Pago N°5: Cierre iteración 2 EC',   dp:0,    lv:4, h:true  },
+    { n:'Iteración 3 EC',                             dp:18,   lv:4, h:false, off:65   },
+    { n:'Configuración reportes',                     dp:4,    lv:5, h:false, off:65   },
+    { n:'Presentación Iteración 3',                   dp:8,    lv:5, h:false, off:69   },
+    { n:'Ajustes IT3 y Pruebas finales',              dp:6,    lv:5, h:false, off:77   },
+    { n:'Firma Workbook IT3',                         dp:0,    lv:5, h:true  },
+    { n:'Employee Central Payroll (ECP)',              dp:84,   lv:3, h:false, off:0    },
+    { n:'Definición base ECP',                        dp:8,    lv:4, h:false, off:0    },
+    { n:'Nómina regular',                             dp:43,   lv:4, h:false, off:8    },
+    { n:'Payroll Control Center (PCC)',               dp:8,    lv:4, h:false, off:51   },
+    { n:'Iteracción 1 ECP',                           dp:8,    lv:4, h:false, off:59   },
+    { n:'Iteración 2 ECP',                            dp:17,   lv:4, h:false, off:67   },
+    { n:'SAP WORKFORCE TIME & ATT (TAM)',             dp:83,   lv:3, h:false, off:0    },
+    { n:'Configuración y Parametrizaciones TAM',      dp:38,   lv:4, h:false, off:0    },
+    { n:'Iteraciones TAM',                            dp:46,   lv:4, h:false, off:38   },
+    { n:'Integración de Sistemas',                    dp:42,   lv:3, h:false, off:42   },
+    { n:'Integración PTP Datos Maestros',             dp:8,    lv:4, h:false, off:42   },
+    { n:'Integración PTP Datos de Tiempo',            dp:8,    lv:4, h:false, off:50   },
+    { n:'Integraciones Custom',                       dp:25,   lv:4, h:false, off:58   },
+    { n:'Desarrollos ABAP -Priorizados-',             dp:42,   lv:3, h:false, off:42   },
+    { n:'Construccion y desarrollo ABAP',             dp:42,   lv:4, h:false, off:42   },
+    { n:'Hito de Pago N°6: Cierre de Construcción',  dp:0,    lv:3, h:true  },
+    { n:'Módulos de Talento',                         dp:42,   lv:3, h:false, off:42   },
+    { n:'Recruiting Management (RCM)',                dp:42,   lv:4, h:false, off:42   },
+    { n:'Onboarding (ONB)',                           dp:33,   lv:4, h:false, off:50   },
+    { n:'Joule (Asistente IA)',                       dp:33,   lv:3, h:false, off:50   },
+    { n:'Hito de Pago N°7: Cierre de iteraciones',   dp:0,    lv:3, h:true  },
+    { n:'Migración de Datos',                         dp:42,   lv:3, h:false, off:42   },
+    { n:'Datos Maestros (EC)',                        dp:25,   lv:4, h:false, off:42   },
+    { n:'Migrator HCM a ECP',                         dp:13,   lv:4, h:false, off:67   },
+    { n:'Validación de datos',                        dp:4,    lv:4, h:false, off:79   },
+    { n:'Pruebas Unitarias',                          dp:17,   lv:3, h:false, off:83   },
+    { n:'EC – Pruebas unitarias',                     dp:17,   lv:4, h:false, off:83   },
+    { n:'ECP + PCC – Pruebas unitarias',              dp:17,   lv:4, h:false, off:83   },
+    { n:'TAM – Pruebas unitarias',                    dp:17,   lv:4, h:false, off:83   },
+    { n:'Integraciones – Pruebas unitarias',          dp:17,   lv:4, h:false, off:83   },
+    { n:'RCM – Pruebas unitarias',                    dp:17,   lv:4, h:false, off:83   },
+    { n:'ONB – Pruebas unitarias',                    dp:17,   lv:4, h:false, off:83   },
+    { n:'Firma de Pruebas Unitarias',                 dp:0,    lv:3, h:true  },
+  ]},
+  // ── FASE 3: Realización – Test ──────────────────────────────────────────
+  { phaseIdx:3, tasks:[
+    { n:'Transporte a Calidad',                       dp:20,   lv:3, h:false, off:0    },
+    { n:'EC – Transporte QA',                         dp:20,   lv:4, h:false, off:0    },
+    { n:'ECP – Transporte QA',                        dp:20,   lv:4, h:false, off:0    },
+    { n:'TAM – Transporte QA',                        dp:20,   lv:4, h:false, off:0    },
+    { n:'Integración – Transporte QA',                dp:20,   lv:4, h:false, off:0    },
+    { n:'RCM – Transporte QA',                        dp:20,   lv:4, h:false, off:0    },
+    { n:'ONB – Transporte QA',                        dp:20,   lv:4, h:false, off:0    },
+    { n:'PCC – Transporte QA',                        dp:20,   lv:4, h:false, off:0    },
+    { n:'Autorizaciones y Roles – QA',                dp:20,   lv:4, h:false, off:0    },
+    { n:'Desarrollos MDF - ABAP – QA',                dp:20,   lv:4, h:false, off:0    },
+    { n:'Pruebas Integrales',                         dp:80,   lv:3, h:false, off:20   },
+    { n:'Ejecución Pruebas Integrales',               dp:80,   lv:4, h:false, off:20   },
+    { n:'QG2: Aceptación de la Solución',             dp:0,    lv:3, h:true  },
+    { n:'Firma de Pruebas Integrales',                dp:0,    lv:3, h:true  },
+  ]},
+  // ── FASE 4: Despliegue ──────────────────────────────────────────────────
+  { phaseIdx:4, tasks:[
+    { n:'Reunión Go no Go',                           dp:5,    lv:3, h:false, off:0    },
+    { n:'Transporte a PRD',                           dp:29,   lv:3, h:false, off:5    },
+    { n:'EC – Transporte PRD',                        dp:29,   lv:4, h:false, off:5    },
+    { n:'ECP – Transporte PRD',                       dp:29,   lv:4, h:false, off:5    },
+    { n:'TAM – Transporte PRD',                       dp:24,   lv:4, h:false, off:5    },
+    { n:'Integración – Transporte PRD',               dp:29,   lv:4, h:false, off:5    },
+    { n:'Reclutamiento – Transporte PRD',             dp:29,   lv:4, h:false, off:5    },
+    { n:'ONB – Transporte PRD',                       dp:24,   lv:4, h:false, off:5    },
+    { n:'PCC – Transporte PRD',                       dp:24,   lv:4, h:false, off:5    },
+    { n:'Autorizaciones – Transporte PRD',            dp:29,   lv:4, h:false, off:5    },
+    { n:'Desarrollos ABAP – Transporte PRD',          dp:29,   lv:4, h:false, off:5    },
+    { n:'Capacitación Train the Trainers',            dp:24,   lv:3, h:false, off:5    },
+    { n:'Hito de Pago N°10: Capac. Train the trainers',dp:0,  lv:3, h:true  },
+    { n:'Migración de Datos – PRD',                   dp:67,   lv:3, h:false, off:33   },
+    { n:'Carga y validación datos en EC',             dp:19,   lv:4, h:false, off:33   },
+    { n:'Réplica de datos a ECP',                     dp:24,   lv:4, h:false, off:52   },
+    { n:'Carga y validación datos en ECP',            dp:24,   lv:4, h:false, off:76   },
+  ]},
+  // ── FASE 5: Go Live and Support ─────────────────────────────────────────
+  { phaseIdx:5, tasks:[
+    { n:'Carga de novedades en EC',                   dp:21,   lv:3, h:false, off:0    },
+    { n:'Primer pago de nómina',                      dp:29,   lv:3, h:false, off:21   },
+    { n:'Nómina de corrección y finiquitos',          dp:21,   lv:3, h:false, off:50   },
+    { n:'Contabilización',                            dp:14,   lv:3, h:false, off:71   },
+    { n:'Reportes legales',                           dp:14,   lv:3, h:false, off:86   },
+  ]},
+];
+
+/* ═══════════════════════════════════════════════════════
+   UTILITY FUNCTIONS
+   ═══════════════════════════════════════════════════════ */
+function addMonths(d, n) {
+  const r = new Date(d);
+  r.setMonth(r.getMonth() + n);
+  return r;
+}
+function addDays(d, n) {
+  const r = new Date(d);
+  r.setDate(r.getDate() + n);
+  return r;
+}
+function diffDays(a, b) { return Math.round((b - a) / 864e5); }
+function fmtS(d) {
+  if (!d) return '—';
+  return d.toLocaleDateString('es-CL', { day:'2-digit', month:'short' });
+}
+function fmtF(d) {
+  if (!d) return '—';
+  return d.toLocaleDateString('es-CL', { day:'2-digit', month:'short', year:'numeric' });
+}
+function workingDays(n) { return Math.round(n * 5 / 7); }
+function calDays(wd) { return Math.round(wd * 7 / 5); }
+
+/* ═══════════════════════════════════════════════════════
+   TIME COLUMN BUILDER
+   ═══════════════════════════════════════════════════════ */
+function buildCols(start, end, mode) {
+  const cols = [];
+  let cur = new Date(start);
+
+  if (mode === 'week') {
+    const dow = cur.getDay();
+    cur.setDate(cur.getDate() - (dow === 0 ? 6 : dow - 1)); // align to Monday
+    let wn = 1;
+    while (cur <= end) {
+      cols.push({
+        label: 'S' + wn,
+        monthLabel: cur.toLocaleDateString('es-CL',{month:'short',year:'2-digit'}).toUpperCase(),
+        monthKey: cur.getFullYear()*100 + cur.getMonth(),
+        start: new Date(cur), days: 7
+      });
+      cur = addDays(cur, 7); wn++;
+    }
+  } else if (mode === 'biweek') {
+    cur = new Date(cur.getFullYear(), cur.getMonth(), 1);
+    while (cur <= end) {
+      const y = cur.getFullYear(), m = cur.getMonth();
+      const dInM = new Date(y, m+1, 0).getDate();
+      const ml = cur.toLocaleDateString('es-CL',{month:'short',year:'2-digit'}).toUpperCase();
+      cols.push({ label:'1-15',      monthLabel:ml, monthKey:y*100+m,   start:new Date(y,m,1),  days:15 });
+      cols.push({ label:`16-${dInM}`,monthLabel:ml, monthKey:y*100+m+.5,start:new Date(y,m,16), days:dInM-15 });
+      cur = new Date(y, m+1, 1);
+    }
+  } else {
+    cur = new Date(cur.getFullYear(), cur.getMonth(), 1);
+    while (cur <= end) {
+      const y = cur.getFullYear(), m = cur.getMonth();
+      const dInM = new Date(y, m+1, 0).getDate();
+      cols.push({
+        label: cur.toLocaleDateString('es-CL',{month:'short',year:'2-digit'}).toUpperCase(),
+        monthLabel: y.toString(),
+        monthKey: y*100+m,
+        start: new Date(y,m,1), days: dInM
+      });
+      cur = new Date(y, m+1, 1);
+    }
+  }
+  return cols;
+}
+
+/* ═══════════════════════════════════════════════════════
+   MAIN GANTT BUILDER
+   ═══════════════════════════════════════════════════════ */
+let lastRows = []; // saved for Excel export
+
+function buildGantt() {
+  const projName  = document.getElementById('fProjName').value  || 'Proyecto';
+  const client    = document.getElementById('fClient').value    || '';
+  const startStr  = document.getElementById('fStart').value;
+  const months    = parseInt(document.getElementById('fMonths').value);
+  const scale     = document.getElementById('fScale').value;
+  const detail    = document.getElementById('fDetail').value;
+  const nHitos    = parseInt(document.getElementById('fHitos').value);
+  const showDur   = document.getElementById('fShowDur').checked;
+  const showDates = document.getElementById('fShowDates').checked;
+
+  if (!startStr) { alert('Ingresa la fecha de inicio.'); return; }
+
+  const projStart = new Date(startStr + 'T00:00:00');
+  const projEnd   = addMonths(projStart, months);
+  // Working days: ~20 days/month
+  const totalWD   = months * 20;
+  const totalDays = diffDays(projStart, projEnd);
+  const maxLv     = detail === 'summary2' ? 2 : detail === 'summary3' ? 3 : 99;
+
+  // Select hitos proportionally
+  const selectedHitos = ALL_PAY_HITOS.slice(0, nHitos);
+
+  // Build rows
+  const rows = [];
+
+  // Root row – show working days in dur column
+  rows.push({ name: projName, level:0, start: projStart, end: projEnd, dur: totalWD, isHito:false, isHitoPay:false, phaseIdx:-1 });
+  rows.push({ name: 'Implementador SFSF', level:1, start: projStart, end: projEnd, dur: totalWD, isHito:false, isHitoPay:false, phaseIdx:-1 });
+
+  // Use only enabled phases from phaseState (with normalised pct)
+  syncPhaseDefs();
+  const activePhaseDefs = phaseState
+    .filter(p => p.enabled)
+    .map(p => {
+      const origIdx = p.id < PHASE_DEFS.length ? p.id : 0;
+      const base = PHASE_DEFS[origIdx];
+      return { ...base, name: p.name, color: p.color, barColor: p.barColor, pct: p._normPct, origPhaseIdx: origIdx };
+    });
+
+  // Phase rows + children
+  let phaseCursor = 0; // running calendar day offset
+  activePhaseDefs.forEach((ph, pi) => {
+    // Phase working days proportional to totalWD
+    const phaseWD    = Math.round(totalWD * ph.pct / 100);
+    // Phase calendar days proportional to totalDays
+    const phaseDurDays = Math.round(totalDays * ph.pct / 100);
+    const phStart = addDays(projStart, phaseCursor);
+    const phEnd   = addDays(phStart, phaseDurDays - 1);
+    phaseCursor  += phaseDurDays;
+
+    rows.push({
+      name: ph.name, level:2,
+      start: phStart, end: phEnd, dur: phaseWD,
+      isHito:false, isHitoPay:false, phaseIdx:pi,
+      phColor: ph.color, barColor: ph.barColor
+    });
+
+    // Children from PHASE_TASKS – use original phaseIdx for task lookup
+    const ptBlock = PHASE_TASKS.find(b => b.phaseIdx === ph.origPhaseIdx);
+    if (ptBlock) {
+      ptBlock.tasks.forEach(t => {
+        if (t.lv > maxLv) return;
+        let tStart, tEnd, tDur;
+        if (t.h) {
+          const offDays = t.off !== undefined ? Math.round(phaseDurDays * t.off / 100) : phaseDurDays - 1;
+          tStart = tEnd = addDays(phStart, offDays);
+          tDur = 0;
+        } else {
+          const offDays = Math.round(phaseDurDays * (t.off||0) / 100);
+          // Duration in working days proportional to phase working days
+          tDur  = Math.max(1, Math.round(phaseWD * t.dp / 100));
+          // Calendar span for this task (approximate: WD * 7/5)
+          const calDur = Math.max(1, Math.round(tDur * 7 / 5));
+          tStart = addDays(phStart, offDays);
+          tEnd   = addDays(tStart, calDur - 1);
+        }
+        rows.push({
+          name: t.n, level: t.lv,
+          start: tStart, end: tEnd, dur: tDur,
+          isHito: t.h, isHitoPay: false, phaseIdx: pi,
+          phColor: ph.color, barColor: ph.barColor
+        });
+      });
+    }
+  });
+
+  // Hitos de pago: place proportionally in calendar days
+  // Hito N°1 goes at end of Inicio phase (phaseIdx=0)
+  selectedHitos.forEach(h => {
+    let hDate;
+    if (h.atPhaseEnd !== undefined) {
+      // Place at end of that phase
+      const phRow = rows.find(r => r.level===2 && r.phaseIdx===h.atPhaseEnd);
+      hDate = phRow ? phRow.end : addDays(projStart, Math.round(totalDays * h.pct / 100));
+    } else {
+      hDate = addDays(projStart, Math.round(totalDays * h.pct / 100));
+    }
+    rows.push({
+      name: h.name, level:2,
+      start: hDate, end: hDate, dur:0,
+      isHito:true, isHitoPay:true, phaseIdx:-1
+    });
+  });
+
+  // Sort hitos into position by date
+  rows.sort((a,b) => {
+    if (!a.start || !b.start) return 0;
+    return a.start - b.start || a.level - b.level;
+  });
+
+  lastRows = rows; // save for export
+
+  // Build columns
+  const cols = buildCols(projStart, projEnd, scale);
+  const today = new Date();
+
+  // Update topbar
+  document.getElementById('tbarTitle').textContent = projName;
+  document.getElementById('tbarMeta').textContent  =
+    `${client ? client + ' · ' : ''}${fmtF(projStart)} — ${fmtF(projEnd)} · ${months} meses · ${totalWD} días hábiles · ${nHitos} hitos de pago`;
+
+  /* ── RENDER TABLE ── */
+  const out = document.createElement('div');
+  out.id = 'ganttOutput';
+
+  // Title band
+  const band = document.createElement('div');
+  band.className = 'g-title-band';
+  band.innerHTML = `
+    <div>
+      <h2>${projName}</h2>
+      <div class="meta">${client ? client+' · ':''} ${fmtF(projStart)} → ${fmtF(projEnd)} · ${months} meses · ${totalWD} días hábiles</div>
+    </div>
+    <div class="g-legend">
+      <div class="leg"><div class="leg-sq" style="background:#2e86c1"></div>Fase</div>
+      <div class="leg"><div class="leg-sq" style="background:#60aee0"></div>Módulo</div>
+      <div class="leg"><div class="leg-sq" style="background:#93c9ec"></div>Tarea</div>
+      <div class="leg"><div class="leg-di" style="background:#e8a020"></div>Hito</div>
+      <div class="leg"><div class="leg-di" style="background:#cb4335"></div>Hito Pago</div>
+    </div>`;
+  out.appendChild(band);
+
+  // Table
+  const tbl = document.createElement('table');
+  tbl.className = 'g-tbl';
+
+  // Colgroup
+  const cg = document.createElement('colgroup');
+  cg.innerHTML = `<col class="cL">${showDur?'<col class="cD">':''}${showDates?'<col class="cS"><col class="cE">':''}`;
+  cols.forEach(() => { const c = document.createElement('col'); c.className='cW'; cg.appendChild(c); });
+  tbl.appendChild(cg);
+
+  // THEAD
+  const thead = document.createElement('thead');
+
+  // Month row
+  const rMon = document.createElement('tr'); rMon.className = 'rMon';
+  const fixedColspan = 1 + (showDur?1:0) + (showDates?2:0);
+  const fixedTh = document.createElement('th'); fixedTh.className='fix'; fixedTh.colSpan=fixedColspan;
+  rMon.appendChild(fixedTh);
+  // Group columns by monthKey
+  let prevKey=null, span=0, cells=[];
+  cols.forEach((c,i) => {
+    if (c.monthKey !== prevKey) { if(prevKey!==null) cells.push({label:cols[i-span].monthLabel,span}); prevKey=c.monthKey; span=1; } else span++;
+  });
+  if(span>0) cells.push({label:cols[cols.length-span].monthLabel,span});
+  cells.forEach(mc => {
+    const th = document.createElement('th'); th.colSpan=mc.span; th.textContent=mc.label; rMon.appendChild(th);
+  });
+  thead.appendChild(rMon);
+
+  // Week row
+  const rWk = document.createElement('tr'); rWk.className='rWk';
+  rWk.innerHTML=`<th class="fix">ACTIVIDAD</th>${showDur?'<th class="fix">DÍAS</th>':''}${showDates?'<th class="fix">INICIO</th><th class="fix">FIN</th>':''}`;
+  cols.forEach((c,i) => {
+    const th=document.createElement('th'); th.textContent=c.label;
+    if(i%2===1) th.style.background='#e8ecf5';
+    rWk.appendChild(th);
+  });
+  thead.appendChild(rWk);
+  tbl.appendChild(thead);
+
+  // TBODY
+  const tbody = document.createElement('tbody');
+
+  rows.forEach(row => {
+    if (row.level > maxLv && !row.isHito) return;
+
+    const tr = document.createElement('tr');
+    let cls = `rl${Math.min(row.level,7)}`;
+    if (row.isHitoPay) cls += ' rHP';
+    else if (row.isHito) cls += ' rH';
+    tr.className = cls;
+
+    // Phase-level background color
+    if (row.level === 2 && !row.isHito) {
+      tr.querySelectorAll && setTimeout(() => {});
+      tr.dataset.phColor = row.phColor || '#1a5276';
+    }
+
+    const prefix = row.isHitoPay ? '◆ ' : row.isHito ? '◇ ' : '';
+    const indent = 6 + row.level * 10;
+
+    // Label
+    const tdL = document.createElement('td');
+    tdL.className = 'td-lbl';
+    tdL.style.height = '22px';
+    tdL.innerHTML = `<div style="padding:2px 6px 2px ${indent}px;overflow:hidden;text-overflow:ellipsis">${prefix}${row.name}</div>`;
+    if (row.level === 2 && row.phColor) {
+      tdL.style.background = row.phColor;
+      tdL.style.color = '#fff';
+    }
+    tr.appendChild(tdL);
+
+    if (showDur) {
+      const td = document.createElement('td'); td.className='td-dur';
+      if (row.level===2 && row.phColor) td.style.background=row.phColor;
+      td.innerHTML=`<div style="padding:2px 4px">${row.isHito?'—':row.dur+'d'}</div>`;
+      tr.appendChild(td);
+    }
+    if (showDates) {
+      const tdS=document.createElement('td'); tdS.className='td-s';
+      if(row.level===2&&row.phColor) tdS.style.background=row.phColor;
+      tdS.innerHTML=`<div style="padding:2px 4px">${fmtS(row.start)}</div>`;
+      const tdE=document.createElement('td'); tdE.className='td-e';
+      if(row.level===2&&row.phColor) tdE.style.background=row.phColor;
+      tdE.innerHTML=`<div style="padding:2px 4px">${fmtS(row.end)}</div>`;
+      tr.appendChild(tdS); tr.appendChild(tdE);
+    }
+
+    // Gantt cells
+    cols.forEach((col,ci) => {
+      const td=document.createElement('td');
+      td.className='td-cell'+(ci%2===1?' week-alt':'');
+      td.style.height='22px';
+      if(row.level===2&&row.phColor) td.style.background=lightenHex(row.phColor,0.85);
+
+      const bw=document.createElement('div'); bw.className='bw';
+
+      if (row.start && row.end) {
+        const colS = diffDays(projStart, col.start);
+        const colE = colS + col.days - 1;
+        const bS   = diffDays(projStart, row.start);
+        const bE   = diffDays(projStart, row.end);
+
+        if (row.isHito) {
+          if (bS >= colS && bS <= colE) {
+            const pct = ((bS-colS)/col.days)*100;
+            const dm=document.createElement('div');
+            dm.className='dm';
+            dm.style.left=`calc(${pct}% - 5.5px)`;
+            dm.style.background = row.isHitoPay ? '#cb4335' : '#e8a020';
+            dm.title=`${row.name}\n${fmtS(row.start)}`;
+            bw.appendChild(dm);
+          }
+        } else {
+          const oS=Math.max(bS,colS), oE=Math.min(bE,colE);
+          if (oS<=oE) {
+            const left  = ((oS-colS)/col.days)*100;
+            const width = ((oE-oS+1)/col.days)*100;
+            const bar=document.createElement('div');
+            bar.className='gb';
+            bar.style.left  = left+'%';
+            bar.style.width = Math.min(width,100-left)+'%';
+            // Height & color by level
+            const heights = [16,14,13,12,10,8,7,6];
+            bar.style.height = (heights[Math.min(row.level,7)])+'px';
+            // Use phase bar color for all rows belonging to that phase
+            const bc = row.barColor || levelColor(row.level);
+            bar.style.background = bc;
+            bar.style.opacity = row.level<=2 ? '1' : row.level<=4 ? '.85' : '.7';
+            bar.title=`${row.name}\n${fmtS(row.start)} → ${fmtS(row.end)} · ${row.dur}d`;
+            bw.appendChild(bar);
+          }
+        }
+
+        // Today
+        const todayD = diffDays(projStart, today);
+        if (todayD>=colS && todayD<=colE) {
+          const tl=document.createElement('div'); tl.className='tl';
+          tl.style.left=((todayD-colS)/col.days*100)+'%';
+          bw.appendChild(tl);
+        }
+      }
+      td.appendChild(bw); tr.appendChild(td);
+    });
+
+    tbody.appendChild(tr);
+  });
+
+  tbl.appendChild(tbody);
+  out.appendChild(tbl);
+
+  const body=document.getElementById('mainBody');
+  body.innerHTML='';
+  body.appendChild(out);
+
+  // Show scroll hint on mobile
+  if (window.innerWidth < 768) {
+    const hint = document.createElement('div');
+    hint.className = 'scroll-hint';
+    hint.textContent = '← Desliza horizontalmente para ver la Gantt →';
+    body.appendChild(hint);
+  }
+}
+
+function levelColor(lv) {
+  const c=['#1a4f8a','#2563a8','#3b82c4','#4a9fd4','#60aee0','#7dbfe8','#93c9ec','#a8d5f0'];
+  return c[Math.min(lv,7)];
+}
+
+function lightenHex(hex, amount) {
+  // Parse hex and mix with white
+  hex = hex.replace('#','');
+  const r=parseInt(hex.slice(0,2),16), g=parseInt(hex.slice(2,4),16), b=parseInt(hex.slice(4,6),16);
+  const mix = v => Math.round(v + (255-v)*amount);
+  return `rgb(${mix(r)},${mix(g)},${mix(b)})`;
+}
+
+/* ═══════════════════════════════════════════════════════
+   TIMESTAMP FILENAME HELPER
+   ═══════════════════════════════════════════════════════ */
+function tsFilename(ext) {
+  const now = new Date();
+  const dd  = String(now.getDate()).padStart(2,'0');
+  const mm  = String(now.getMonth()+1).padStart(2,'0');
+  const yyyy= now.getFullYear();
+  const hh  = String(now.getHours()).padStart(2,'0');
+  const mi  = String(now.getMinutes()).padStart(2,'0');
+  const proj = (document.getElementById('fProjName').value || 'Gantt').replace(/[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ _-]/g,'').trim().replace(/\s+/g,'_');
+  return `${proj}_${dd}${mm}${yyyy}_${hh}${mi}.${ext}`;
+}
+
+/* ═══════════════════════════════════════════════════════
+   EXPORT PNG – captures only the gantt output div
+   ═══════════════════════════════════════════════════════ */
+function exportPNG() {
+  const el = document.getElementById('ganttOutput');
+  if (!el) { alert('Primero genera la carta Gantt.'); return; }
+  const btn = event.currentTarget;
+  const origText = btn.textContent;
+  btn.textContent = 'Generando…';
+  btn.disabled = true;
+
+  html2canvas(el, {
+    scale: 2,
+    backgroundColor: '#ffffff',
+    useCORS: true,
+    allowTaint: true,
+    logging: false,
+    width: el.scrollWidth,
+    height: el.scrollHeight,
+    windowWidth: el.scrollWidth,
+    windowHeight: el.scrollHeight
+  }).then(canvas => {
+    canvas.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = tsFilename('png');
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      btn.textContent = origText;
+      btn.disabled = false;
+    }, 'image/png');
+  }).catch(err => {
+    console.error('PNG error:', err);
+    // Fallback: open canvas in new tab so user can right-click save
+    const canvas2 = document.createElement('canvas');
+    const ctx = canvas2.getContext('2d');
+    canvas2.width = el.offsetWidth * 2;
+    canvas2.height = el.offsetHeight * 2;
+    ctx.scale(2, 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas2.width, canvas2.height);
+    alert('Abre la imagen en nueva pestaña para guardarla.');
+    btn.textContent = origText;
+    btn.disabled = false;
+  });
+}
+
+/* ═══════════════════════════════════════════════════════
+   RESOURCE MAP – from original SFSF Excel
+   ═══════════════════════════════════════════════════════ */
+const RESOURCE_MAP = {
+  'Preparación cronograma detallado':         'Cliente Jefe de Proyecto;Jefe de Proyecto',
+  'Preparación presentación Kick-off':         'Cliente Jefe de Proyecto;Jefe de Proyecto',
+  'Cronograma detallado y capacidad usuarios': 'Cliente Jefe de Proyecto;Jefe de Proyecto',
+  'Definicion de agenda y reportes':           'Cliente Jefe de Proyecto;Jefe de Proyecto',
+  'Formacion equipo y mesas de trabajo':       'Cliente Jefe de Proyecto;Jefe de Proyecto',
+  'Planificación y ejecución del Kick-off':    'Cliente Jefe de Proyecto;Jefe de Proyecto',
+  'S-USER SAP One Support':                    'Cliente Arquitectura[5%]',
+  'Acceso a ECP':                              'Cliente Arquitectura[5%]',
+  'Acceso a SFSF EC y Provisioning':           'Cliente Arquitectura[5%]',
+  'Acceso a RCM/RMK':                          'Cliente Arquitectura[5%]',
+  'Acceso Docusign':                           'Cliente Arquitectura[5%]',
+  'Solicitud de Provisioning Integración':     'Cliente Arquitectura[5%]',
+  'Firma Plan de Proyecto':                    'Cliente Sponsor;Sponsor',
+  'Hito N°1: Formalización firma de contrato': 'Cliente Jefe de Proyecto;Jefe de Proyecto',
+  'Workshop Employee Central (EC)':            'Cliente Usuario Employee Central;Consultor EC',
+  'Workshop Employee Central Payroll (ECP)':   'Cliente Usuario de Nómina;Consultor ECP',
+  'Workshop SAP WORKFORCE TIME & ATT (TAM)':   'Cliente Usuario de Tiempo;Consultor TAM',
+  'Objeto de Fundamento':                      'Cliente Usuario Employee Central;Consultor EC',
+  'Posiciones':                                'Cliente Usuario Employee Central;Consultor EC',
+  'Datos de Empleado':                         'Cliente Usuario Employee Central;Consultor EC',
+  'Perfil del Empleado':                       'Cliente Usuario Employee Central;Consultor EC',
+  'Eventos':                                   'Cliente Usuario Employee Central;Consultor EC',
+  'Autoservicios':                             'Cliente Usuario Employee Central;Consultor EC',
+  'Beneficios, Seguros y Convenios':           'Cliente Usuario Employee Central;Consultor EC',
+  'Reportes':                                  'Cliente Usuario Employee Central;Consultor EC',
+  'Formatos y documento':                      'Cliente Usuario Employee Central;Consultor EC',
+  'Análisis de GAPs en EC':                    'Cliente Usuario Employee Central;Consultor EC',
+  'Consolidación de la información':           'Cliente Usuario Employee Central;Consultor EC',
+  'Presentación Workbooks base':               'Cliente Usuario Employee Central;Consultor EC',
+  'Ajuste de Workbooks base':                  'Cliente Usuario Employee Central;Consultor EC',
+  'Firma de Workbooks BASE (EC)':              'Cliente Jefe de Proyecto;Cliente Sponsor;Jefe de Proyecto;Sponsor',
+  'Estructuras: Empresa y Personal':           'Cliente Usuario de Nómina;Consultor ECP',
+  'Seguridad Social':                          'Cliente Usuario de Nómina;Consultor ECP',
+  'Anticipos, pagos varios, bonificaciones':   'Cliente Usuario de Nómina;Consultor ECP',
+  'Descuentos, Retenciones, pago a 3eros':     'Cliente Usuario de Nómina;Consultor ECP',
+  'Asignación Familiar':                       'Cliente Usuario de Nómina;Consultor ECP',
+  'Consolidación información BBP':             'Cliente Usuario de Nómina;Consultor ECP',
+  'Préstamos':                                 'Cliente Usuario de Nómina;Consultor ECP',
+  'Impuestos a la renta, zona extremas':       'Cliente Usuario de Nómina;Consultor ECP',
+  'Provisiones':                               'Cliente Usuario de Nómina;Consultor ECP',
+  'Finiquito':                                 'Cliente Usuario de Nómina;Consultor ECP',
+  'Análisis de GAPs en ECP':                   'Cliente Usuario de Nómina;Consultor ECP',
+  'Presentación BBP':                          'Cliente Usuario de Nómina;Consultor ECP',
+  'Firma de Workbooks BASE (ECP)':             'Cliente Jefe de Proyecto;Cliente Sponsor;Jefe de Proyecto;Sponsor',
+  'Formación equipo técnicos':                 'Cliente Arquitectura[20%];Cliente Jefe de Proyecto[20%];Integrador[20%]',
+  'Reunión de Coordinación Integración':       'Cliente Arquitectura[20%];Cliente Jefe de Proyecto[20%];Integrador[20%]',
+  'Diseño integraciones estándares + Custom':  'Cliente Arquitectura[20%];Cliente Jefe de Proyecto[20%];Integrador[20%]',
+  'Presentación diseño de integración':        'Cliente Arquitectura[20%];Cliente Jefe de Proyecto[20%];Integrador[20%]',
+  'Revisión y aprobación':                     'Cliente Arquitectura[20%];Cliente Jefe de Proyecto[20%];Integrador[20%]',
+  'Firma de Workbooks BASE (Integr.)':         'Cliente Sponsor;Jefe de Proyecto;Sponsor',
+  'Talleres Relevamiento: Core Items':         'Cliente Usuario de Tiempo;Consultor TAM',
+  'Talleres Relevamiento – Leave & Accruals':  'Cliente Usuario de Tiempo;Consultor TAM',
+  'Firma de Workbooks BASE (TAM)':             'Cliente Jefe de Proyecto;Cliente Sponsor;Jefe de Proyecto;Sponsor',
+  'Especificaciones funcionales ABAP':         'Consultor ABAP',
+  'Especificaciones técnicas ABAP':            'Consultor ABAP',
+  'Configuración y Parametrizaciones EC':      'Consultor EC',
+  'Carga de datos para IT1':                   'Consultor EC',
+  'Presentación iteración 1':                  'Cliente Usuario Employee Central;Consultor EC',
+  'Ajustes de Iteración 1':                    'Consultor EC',
+  'Firma del Workbook IT1':                    'Cliente Jefe de Proyecto;Cliente Sponsor;Jefe de Proyecto;Sponsor',
+  'Configuración RBP':                         'Consultor EC',
+  'Configuración MDF':                         'Consultor EC',
+  'Presentación de Iteración 2':               'Cliente Usuario Employee Central;Consultor EC',
+  'Ajustes de Iteración 2':                    'Consultor EC',
+  'Firma del Workbook IT2':                    'Cliente Jefe de Proyecto;Cliente Sponsor;Jefe de Proyecto;Sponsor',
+  'Configuración reportes':                    'Consultor EC',
+  'Presentación Iteración 3':                  'Cliente Usuario Employee Central;Consultor EC',
+  'Ajustes IT3 y Pruebas finales':             'Consultor EC',
+  'Firma Workbook IT3':                        'Cliente Jefe de Proyecto;Cliente Sponsor;Jefe de Proyecto;Sponsor',
+  'Definición base ECP':                       'Consultor ECP',
+  'Nómina regular':                            'Consultor ECP',
+  'Payroll Control Center (PCC)':              'Consultor PCC',
+  'Iteracción 1 ECP':                          'Consultor ECP',
+  'Iteración 2 ECP':                           'Consultor ECP',
+  'Configuración y Parametrizaciones TAM':     'Consultor TAM',
+  'Iteraciones TAM':                           'Consultor TAM',
+  'Integración PTP Datos Maestros':            'Integrador',
+  'Integración PTP Datos de Tiempo':           'Integrador',
+  'Integraciones Custom':                      'Integrador',
+  'Recruiting Management (RCM)':              'Consultor RCM',
+  'Onboarding (ONB)':                          'Consultor ONB',
+  'Joule (Asistente IA)':                      'Consultor Joule',
+  'Datos Maestros (EC)':                       'Equipo de Migración',
+  'Migrator HCM a ECP':                        'Equipo de Migración',
+  'Validación de datos':                       'Equipo de Migración',
+  'EC – Pruebas unitarias':                    'Cliente Usuario Employee Central;Consultor EC',
+  'ECP + PCC – Pruebas unitarias':             'Consultor ECP[30%];Cliente Usuario de Nómina 2[50%]',
+  'TAM – Pruebas unitarias':                   'Cliente Usuario de Tiempo;Consultor TAM',
+  'Integraciones – Pruebas unitarias':         'Integrador',
+  'RCM – Pruebas unitarias':                   'Cliente Usuario de Reclutamiento;Consultor RCM',
+  'ONB – Pruebas unitarias':                   'Cliente Usuario Onboarding;Consultor ONB',
+  'EC – Transporte QA':                        'Consultor EC',
+  'ECP – Transporte QA':                       'Consultor ECP',
+  'TAM – Transporte QA':                       'Consultor TAM',
+  'Integración – Transporte QA':               'Integrador',
+  'RCM – Transporte QA':                       'Consultor RCM',
+  'ONB – Transporte QA':                       'Consultor ONB',
+  'PCC – Transporte QA':                       'Consultor PCC',
+  'Autorizaciones y Roles – QA':               'Roles/Basis ECP',
+  'Desarrollos MDF - ABAP – QA':              'Consultor ABAP',
+  'QG2: Aceptación de la Solución':            'Cliente Jefe de Proyecto;Cliente Sponsor;Jefe de Proyecto;Sponsor',
+  'Firma de Pruebas Integrales':               'Cliente Jefe de Proyecto;Cliente Sponsor;Jefe de Proyecto;Sponsor',
+  'Reunión Go no Go':                          'Cliente Jefe de Proyecto;Cliente Sponsor;Jefe de Proyecto;Sponsor',
+  'EC – Transporte PRD':                       'Consultor EC',
+  'ECP – Transporte PRD':                      'Consultor ECP',
+  'TAM – Transporte PRD':                      'Consultor TAM',
+  'Integración – Transporte PRD':              'Integrador',
+  'Reclutamiento – Transporte PRD':            'Consultor RCM',
+  'ONB – Transporte PRD':                      'Consultor ONB',
+  'PCC – Transporte PRD':                      'Consultor PCC',
+  'Autorizaciones – Transporte PRD':           'Roles/Basis ECP',
+  'Desarrollos ABAP – Transporte PRD':         'Consultor ABAP',
+  'Carga y validación datos en EC':            'Consultor EC',
+  'Réplica de datos a ECP':                    'Integrador',
+  'Carga y validación datos en ECP':           'Consultor ECP',
+  'Carga de novedades en EC':                  'Cliente Usuario de Nómina;Cliente Usuario de Reclutamiento;Cliente Usuario de Tiempo;Cliente Usuario Employee Central;Cliente Usuario Onboarding',
+  'Primer pago de nómina':                     'Cliente Usuario de Nómina;Cliente Usuario de Tiempo;Cliente Usuario Employee Central',
+  'Nómina de corrección y finiquitos':         'Cliente Usuario de Nómina;Cliente Usuario de Tiempo;Cliente Usuario Employee Central',
+  'Contabilización':                           'Cliente Usuario de Nómina;Cliente Usuario de Tiempo;Cliente Usuario Employee Central',
+  'Reportes legales':                          'Cliente Usuario de Nómina;Cliente Usuario de Tiempo;Cliente Usuario Employee Central',
+};
+
+/* ═══════════════════════════════════════════════════════
+   PREDECESSOR BUILDER
+   Logic: each task's predecessor = the immediately prior
+   task one level up (its parent group/phase row number).
+   Leaf tasks reference the preceding sibling at same level.
+   Hitos de pago reference the last phase row before them.
+   This mirrors the MS Project "Finish-to-Start" chain
+   used in the original SFSF Excel.
+   ═══════════════════════════════════════════════════════ */
+function buildPredecessors(row, idx) {
+  if (row.level <= 1) return '';                   // root rows: no predecessor
+  if (row.level === 2 && !row.isHito) return '';    // phase headers: no predecessor
+
+  // Hitos de pago (level 2, isHitoPay): point to last phase end before them
+  if (row.isHitoPay) {
+    for (let i = idx - 1; i >= 0; i--) {
+      if (lastRows[i].level === 2 && !lastRows[i].isHito) return String(i + 1);
+    }
+    return '';
+  }
+
+  // All other tasks: find nearest prior row that is the direct parent
+  // (level exactly one less), which matches the Excel's FS dependency
+  for (let i = idx - 1; i >= 0; i--) {
+    const r = lastRows[i];
+    if (r.level === row.level - 1) return String(i + 1);
+    if (r.level < row.level - 1) break; // went too far up
+  }
+  // Fallback: previous sibling at same level in same phase
+  for (let i = idx - 1; i >= 0; i--) {
+    const r = lastRows[i];
+    if (r.phaseIdx !== row.phaseIdx) break;
+    if (r.level === row.level) return String(i + 1);
+  }
+  return '';
+}
+
+const DAYS_ES_GLOBAL = ['dom','lun','mar','mié','jue','vie','sáb'];
+function fmtMPP(d) {
+  if (!d) return '';
+  return `${DAYS_ES_GLOBAL[d.getDay()]} ${String(d.getDate()).padStart(2,'0')}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getFullYear()).slice(2)} 9:00`;
+}
+
+/* ═══════════════════════════════════════════════════════
+   RESET PAGE – clears all inputs and restores empty state
+   ═══════════════════════════════════════════════════════ */
+function resetPage() {
+  // Reset form fields
+  document.getElementById('fProjName').value = '';
+  document.getElementById('fClient').value   = '';
+  const t = new Date();
+  document.getElementById('fStart').value = `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
+  document.getElementById('fMonths').value  = '10';
+  document.getElementById('fScale').value   = 'week';
+  document.getElementById('fDetail').value  = 'detail';
+  document.getElementById('fHitos').value   = '10';
+  document.getElementById('fShowDur').checked   = true;
+  document.getElementById('fShowDates').checked = true;
+
+  // Reset topbar
+  document.getElementById('tbarTitle').textContent = 'Vista previa';
+  document.getElementById('tbarMeta').textContent  = 'Configure el proyecto y presione Generar';
+
+  // Clear gantt area
+  document.getElementById('mainBody').innerHTML = `
+    <div class="empty">
+      <div class="ico">📊</div>
+      <h3>Listo para generar</h3>
+      <p>Configura el proyecto y presiona <strong>Generar Carta Gantt</strong>.</p>
+    </div>`;
+
+  // Clear saved rows
+  lastRows = [];
+
+  // Reset phase state
+  initPhaseState();
+
+  // On mobile, open sidebar so user can reconfigure
+  if (window.innerWidth < 768) {
+    const sb  = document.getElementById('sidebar');
+    const btn = document.getElementById('mobToggle');
+    sb.classList.add('open');
+    btn.classList.add('open');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   EXPORT EXCEL – predecessors + resources + timestamp
+   ═══════════════════════════════════════════════════════ */
+function exportXLSX() {
+  if (!lastRows || !lastRows.length) { alert('Primero genera la carta Gantt.'); return; }
+  const wb = XLSX.utils.book_new();
+  const data = [['Nombre de tarea','Duración','Comienzo','Fin','Predecesoras','Nombres de los recursos']];
+
+  lastRows.forEach((row, idx) => {
+    const indent = '   '.repeat(row.level);
+    const durStr = row.isHito ? '0 días' : row.dur===1 ? '1 día' : row.dur+' días';
+    const pred   = buildPredecessors(row, idx);
+    const res    = RESOURCE_MAP[row.name] || '';
+    data.push([indent+row.name, durStr, fmtMPP(row.start), fmtMPP(row.end), pred, res]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws['!cols'] = [{wch:62},{wch:12},{wch:22},{wch:22},{wch:14},{wch:55}];
+
+  const phaseColorMap = ['1A5276','1E8449','6C3483','A04000','0E6655','922B21'];
+  lastRows.forEach((row, i) => {
+    const wsRow = i+2;
+    if (!ws['A'+wsRow]) return;
+    let bg='FFFFFF';
+    if (row.level===0)     bg='08111E';
+    else if (row.level===1) bg='102035';
+    else if (row.level===2&&!row.isHito) bg=phaseColorMap[row.phaseIdx]||'1A3A5F';
+    else if (row.isHitoPay) bg='FFF5F5';
+    else if (row.isHito)    bg='FFFBF0';
+    else if (row.level===3) bg='EEF3FA';
+    else if (row.level===4) bg='F6F8FC';
+    const fg = (row.level<=2&&!row.isHito)?'FFFFFF':row.isHitoPay?'8B1010':row.isHito?'7A5200':'1A2332';
+    const bold  = row.level<=3||row.isHitoPay;
+    const italic= row.isHito&&!row.isHitoPay;
+    ['A','B','C','D','E','F'].forEach(col=>{
+      const ref=col+wsRow;
+      if (ws[ref]) ws[ref].s={
+        font:{bold,italic,color:{rgb:fg},name:'Calibri',sz:10},
+        fill:{fgColor:{rgb:bg}},
+        alignment:{horizontal:col==='A'?'left':'center',vertical:'center'},
+        border:{bottom:{style:'thin',color:{rgb:'D0D5DD'}},right:{style:'thin',color:{rgb:'D0D5DD'}}}
+      };
+    });
+  });
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Carta Gantt');
+
+  const sum=[['Fase','Días hábiles','% del proyecto','Inicio','Fin']];
+  PHASE_DEFS.forEach(ph=>{
+    const r=lastRows.find(x=>x.name===ph.name&&x.level===2);
+    if(r) sum.push([ph.name,r.dur,ph.pct.toFixed(1)+'%',fmtMPP(r.start),fmtMPP(r.end)]);
+  });
+  const ws2=XLSX.utils.aoa_to_sheet(sum);
+  ws2['!cols']=[{wch:35},{wch:14},{wch:14},{wch:22},{wch:22}];
+  XLSX.utils.book_append_sheet(wb,ws2,'Resumen Fases');
+
+  XLSX.writeFile(wb, tsFilename('xlsx'));
+}
+
+</script>
+</body>
+</html>
